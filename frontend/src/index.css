@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background:
+    radial-gradient(circle at 20% 8%, rgba(139, 92, 246, 0.18), transparent 26%),
+    radial-gradient(circle at 82% 15%, rgba(192, 132, 252, 0.14), transparent 24%),
+    radial-gradient(circle at 50% 95%, rgba(109, 40, 217, 0.10), transparent 28%),
+    linear-gradient(180deg, #221f2e 0%, #1e1e24 50%, #1a1a22 100%);
+  background-attachment: fixed;
+  color: #e2e8f0;
+  min-height: 100vh;
+}
+
+/* Custom scrollbar for textareas */
+textarea::-webkit-scrollbar {
+  width: 8px;
+}
+textarea::-webkit-scrollbar-track {
+  background: #1e1e24; 
+}
+textarea::-webkit-scrollbar-thumb {
+  background: #3e3e4a; 
+  border-radius: 4px;
+}
+textarea::-webkit-scrollbar-thumb:hover {
+  background: #8b5cf6; 
+}
