@@ -6,11 +6,11 @@ Natural Mooner translates **Natural Language into Lua Scripts** for [Observo.ai]
 
 ### From Prompt to Lua
 
-<video src="assets/Natural Mooner - from Prompt to LUA.mp4" width="100%" controls></video>
+https://github.com/roarinpenguin/natural-mooner/raw/main/assets/Natural%20Mooner%20-%20from%20Prompt%20to%20LUA.mp4
 
 ### From Lua to Natural Language
 
-<video src="assets/Natural Mooner - from LUA to Natural Language.mp4" width="100%" controls></video>
+https://github.com/roarinpenguin/natural-mooner/raw/main/assets/Natural%20Mooner%20-%20from%20LUA%20to%20Natural%20Language.mp4
 
 ## What It Does
 
