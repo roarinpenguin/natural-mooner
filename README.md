@@ -1,6 +1,6 @@
 # Natural Mooner 🌙
 
-Natural Mooner translates **Natural Language into Lua Scripts** for [Observo.ai](https://observo.ai) pipeline transforms — and vice-versa. Powered by OpenAI, wrapped in a purple neumorphic UI, and deployable with a single Docker command.
+Natural Mooner translates **Natural Language into Lua Scripts** for [Observo.ai](https://observo.ai) pipeline transforms — and vice-versa. Supports **OpenAI**, **Ollama** (local), and **custom OpenAI-compatible servers**. Wrapped in a purple neumorphic UI and deployable with a single Docker command.
 
 ## Demo
 
@@ -16,16 +16,25 @@ Natural Mooner translates **Natural Language into Lua Scripts** for [Observo.ai]
 
 Additional capabilities:
 
-- **Model discovery** — automatically detects which OpenAI models your API key can access and lets you pick one.
-- **Persistent settings** — API key, selected model, and usage stats are stored in your browser across sessions.
+- **Multi-provider** — choose between OpenAI, Ollama (local), or any custom OpenAI-compatible server.
+- **Model discovery** — automatically lists available models from the selected provider.
+- **Persistent settings** — provider, API key, base URL, model, and usage stats stored in your browser.
 - **Cost tracking** — estimated API cost per request and cumulative total, displayed next to the settings gear.
+
+## Supported Providers
+
+| Provider | API Key | Base URL | Cost |
+|---|---|---|---|
+| **OpenAI** | Required | — | Per-token pricing |
+| **Ollama** | — | `http://localhost:11434/v1` | Free (local) |
+| **Custom** | Required | Required (e.g. `https://your-gateway.example.com/v1/`) | Depends on server |
 
 ## How to Run It
 
 ### Prerequisites
 
 - **Docker** and **Docker Compose**
-- An **OpenAI API key**
+- One of: an **OpenAI API key**, a running **Ollama** instance, or a **custom OpenAI-compatible endpoint**
 
 ### Start
 
@@ -39,9 +48,10 @@ Open [http://localhost:3000](http://localhost:3000).
 ### First-time Setup
 
 1. Click the **gear icon** (top-right).
-2. Paste your **OpenAI API key** — models load automatically.
-3. Pick a model from the dropdown.
-4. Start translating.
+2. Select your **provider** (OpenAI / Ollama / Custom).
+3. Enter the required credentials (API key and/or base URL).
+4. Pick a model from the auto-populated dropdown.
+5. Start translating.
 
 ### Stop
 

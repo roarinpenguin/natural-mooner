@@ -18,9 +18,14 @@ async def translate(request: TranslationRequest, llm_service: LLMService = Depen
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/models", response_model=ModelListResponse, responses={500: {"model": ErrorResponse}})
-async def list_models(api_key: str, llm_service: LLMService = Depends(get_llm_service)):
+async def list_models(
+    provider: str = "openai",
+    api_key: str = None,
+    base_url: str = None,
+    llm_service: LLMService = Depends(get_llm_service),
+):
     try:
-        result = llm_service.list_models(api_key)
+        result = llm_service.list_models(provider, api_key, base_url)
         return ModelListResponse(**result)
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))

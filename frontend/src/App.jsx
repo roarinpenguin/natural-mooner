@@ -1,15 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import { Copy, Check, Settings, Sparkles, Moon, Heart } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Copy, Check, Settings, Sparkles, Moon, Heart, Server, Cloud, Cpu } from 'lucide-react';
 import NeumorphicCard from './components/NeumorphicCard';
 import NeumorphicButton from './components/NeumorphicButton';
 import NeumorphicInput from './components/NeumorphicInput';
 import { useTranslation } from './hooks/useTranslation';
 
+const PROVIDERS = [
+  { id: 'openai', label: 'OpenAI', icon: Cloud, needsKey: true, needsUrl: false },
+  { id: 'ollama', label: 'Ollama', icon: Cpu, needsKey: false, needsUrl: true },
+  { id: 'custom', label: 'Custom', icon: Server, needsKey: true, needsUrl: true },
+];
+
+const selectClass = 'w-full bg-bg-dark/90 rounded-xl px-4 py-3 text-text-main outline-none transition-all shadow-neu-purple-in border border-primary/10 focus:border-primary/35';
+
 function App() {
   const [direction, setDirection] = useState('nl_to_lua');
   const [input, setInput] = useState('');
   const [output, setOutput] = useState('');
+  const [provider, setProvider] = useState('openai');
   const [apiKey, setApiKey] = useState('');
+  const [baseUrl, setBaseUrl] = useState('');
   const [model, setModel] = useState('');
   const [models, setModels] = useState([]);
   const [modelsLoading, setModelsLoading] = useState(false);
@@ -21,35 +31,59 @@ function App() {
   const { translate, fetchModels, loading, error } = useTranslation();
 
   useEffect(() => {
-    const storedKey = localStorage.getItem('openai_api_key');
-    const storedModel = localStorage.getItem('openai_model');
-    const storedTotalCost = localStorage.getItem('openai_usage_total_usd');
-    if (storedKey) setApiKey(storedKey);
-    if (storedModel) setModel(storedModel);
-    if (storedTotalCost) setTotalCost(Number(storedTotalCost) || 0);
+    const s = (k) => localStorage.getItem(k) || '';
+    setProvider(s('nm_provider') || 'openai');
+    setApiKey(s('nm_api_key'));
+    setBaseUrl(s('nm_base_url'));
+    setModel(s('nm_model'));
+    setTotalCost(Number(s('nm_usage_total_usd')) || 0);
   }, []);
+
+  const persist = (key, val) => localStorage.setItem(key, val);
+
+  const handleProvider = (val) => {
+    setProvider(val);
+    persist('nm_provider', val);
+    setModels([]);
+    setModel('');
+    persist('nm_model', '');
+  };
 
   const handleSaveKey = (val) => {
     setApiKey(val);
-    localStorage.setItem('openai_api_key', val);
+    persist('nm_api_key', val);
   };
 
-  const handleSaveModel = (val) => {
+  const handleSaveUrl = (val) => {
+    setBaseUrl(val);
+    persist('nm_base_url', val);
+  };
+
+  const handleSaveModel = useCallback((val) => {
     setModel(val);
-    localStorage.setItem('openai_model', val);
+    persist('nm_model', val);
+  }, []);
+
+  const providerCfg = PROVIDERS.find((p) => p.id === provider);
+
+  const canLoadModels = () => {
+    if (provider === 'openai') return !!apiKey;
+    if (provider === 'ollama') return true;
+    if (provider === 'custom') return !!apiKey && !!baseUrl;
+    return false;
   };
 
   useEffect(() => {
     const loadModels = async () => {
-      if (!apiKey) {
+      if (!canLoadModels()) {
         setModels([]);
         return;
       }
       setModelsLoading(true);
       try {
-        const data = await fetchModels(apiKey);
+        const data = await fetchModels({ provider, apiKey, baseUrl });
         setModels(data.models);
-        if (!model || !data.models.some((item) => item.id === model)) {
+        if (!model || !data.models.some((m) => m.id === model)) {
           handleSaveModel(data.default_model);
         }
       } catch (e) {
@@ -58,21 +92,22 @@ function App() {
         setModelsLoading(false);
       }
     };
-
     loadModels();
-  }, [apiKey]);
+  }, [provider, apiKey, baseUrl]);
 
-  const selectedModel = models.find((item) => item.id === model);
+  const selectedModel = models.find((m) => m.id === model);
+
+  const canTranslate = input.trim() && model && canLoadModels();
 
   const handleTranslate = async () => {
-    if (!input.trim() || !apiKey || !model) return;
+    if (!canTranslate) return;
     try {
-      const result = await translate(input, direction, apiKey, model);
+      const result = await translate(input, direction, { provider, apiKey, baseUrl, model });
       setOutput(result.result_text);
       setEstimatedCost(result.estimated_cost_usd || 0);
-      const nextTotalCost = Number((totalCost + (result.estimated_cost_usd || 0)).toFixed(6));
-      setTotalCost(nextTotalCost);
-      localStorage.setItem('openai_usage_total_usd', String(nextTotalCost));
+      const next = Number((totalCost + (result.estimated_cost_usd || 0)).toFixed(6));
+      setTotalCost(next);
+      persist('nm_usage_total_usd', String(next));
     } catch (e) {
       setEstimatedCost(0);
     }
@@ -119,42 +154,85 @@ function App() {
         </div>
       </header>
 
-      <div className={`w-full max-w-3xl transition-all duration-300 overflow-hidden relative z-10 ${showSettings ? 'max-h-[420px] mb-8 opacity-100' : 'max-h-0 opacity-0'}`}>
+      <div className={`w-full max-w-3xl transition-all duration-500 overflow-hidden relative z-10 ${showSettings ? 'max-h-[600px] mb-8 opacity-100' : 'max-h-0 opacity-0'}`}>
         <NeumorphicCard title="Configuration">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-            <div className="md:col-span-2">
-              <label className="text-sm text-text-muted mb-2 block ml-1">OpenAI API Key</label>
-              <NeumorphicInput
-                type="password"
-                placeholder="sk-..."
-                value={apiKey}
-                onChange={(e) => handleSaveKey(e.target.value)}
-              />
-            </div>
+          <div className="flex flex-col gap-4">
             <div>
-              <label className="text-sm text-text-muted mb-2 block ml-1">Supported Model</label>
-              <select
-                value={model}
-                onChange={(e) => handleSaveModel(e.target.value)}
-                className="w-full bg-bg-dark/90 rounded-xl px-4 py-3 text-text-main outline-none transition-all shadow-neu-purple-in border border-primary/10 focus:border-primary/35"
-                disabled={!apiKey || modelsLoading || models.length === 0}
-              >
-                {!apiKey && <option value="">Enter your API key first</option>}
-                {apiKey && modelsLoading && <option value="">Loading models...</option>}
-                {apiKey && !modelsLoading && models.length === 0 && <option value="">No supported models found</option>}
-                {models.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
+              <label className="text-sm text-text-muted mb-2 block ml-1">Provider</label>
+              <div className="flex bg-bg-panel/90 p-1.5 rounded-2xl shadow-neu-purple-in border border-primary/10 gap-1">
+                {PROVIDERS.map((p) => {
+                  const Icon = p.icon;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => handleProvider(p.id)}
+                      className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${provider === p.id ? 'bg-bg-elevated shadow-neu-purple text-primary-soft border border-primary/10' : 'text-text-muted hover:text-text-main'}`}
+                    >
+                      <Icon size={16} />
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div className="rounded-2xl bg-bg-elevated/70 shadow-neu-purple-in border border-primary/10 px-4 py-3 text-sm">
-              <div className="text-text-muted">Estimated pricing for selected model</div>
-              <div className="mt-1 text-primary-soft font-semibold">
-                {selectedModel
-                  ? `$${selectedModel.input_cost_per_million}/1M in · $${selectedModel.output_cost_per_million}/1M out`
-                  : 'Unavailable'}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+              {providerCfg?.needsUrl && (
+                <div className={providerCfg?.needsKey ? '' : 'md:col-span-2'}>
+                  <label className="text-sm text-text-muted mb-2 block ml-1">
+                    {provider === 'ollama' ? 'Ollama Host URL' : 'Server Base URL'}
+                  </label>
+                  <NeumorphicInput
+                    type="text"
+                    placeholder={provider === 'ollama' ? 'http://localhost:11434/v1' : 'https://your-server.example.com/v1/'}
+                    value={baseUrl}
+                    onChange={(e) => handleSaveUrl(e.target.value)}
+                  />
+                </div>
+              )}
+
+              {providerCfg?.needsKey && (
+                <div className={providerCfg?.needsUrl ? '' : 'md:col-span-2'}>
+                  <label className="text-sm text-text-muted mb-2 block ml-1">API Key</label>
+                  <NeumorphicInput
+                    type="password"
+                    placeholder={provider === 'openai' ? 'sk-...' : 'Your API key'}
+                    value={apiKey}
+                    onChange={(e) => handleSaveKey(e.target.value)}
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="text-sm text-text-muted mb-2 block ml-1">Model</label>
+                <select
+                  value={model}
+                  onChange={(e) => handleSaveModel(e.target.value)}
+                  className={selectClass}
+                  disabled={!canLoadModels() || modelsLoading || models.length === 0}
+                >
+                  {!canLoadModels() && <option value="">Configure provider first</option>}
+                  {canLoadModels() && modelsLoading && <option value="">Loading models...</option>}
+                  {canLoadModels() && !modelsLoading && models.length === 0 && <option value="">No models found</option>}
+                  {models.map((item) => (
+                    <option key={item.id} value={item.id}>{item.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="rounded-2xl bg-bg-elevated/70 shadow-neu-purple-in border border-primary/10 px-4 py-3 text-sm">
+                <div className="text-text-muted">
+                  {provider === 'ollama' ? 'Local model — no API cost' : 'Estimated pricing'}
+                </div>
+                <div className="mt-1 text-primary-soft font-semibold">
+                  {provider === 'ollama'
+                    ? 'Free (runs locally)'
+                    : selectedModel
+                      ? selectedModel.input_cost_per_million > 0
+                        ? `$${selectedModel.input_cost_per_million}/1M in · $${selectedModel.output_cost_per_million}/1M out`
+                        : 'Pricing unavailable'
+                      : 'Select a model'}
+                </div>
               </div>
             </div>
           </div>
@@ -193,7 +271,7 @@ function App() {
           <div className="flex justify-center">
             <NeumorphicButton
               onClick={handleTranslate}
-              disabled={loading || !input || !apiKey || !model}
+              disabled={loading || !canTranslate}
               className="w-full max-w-xs !py-4 !text-lg !font-bold text-primary-soft"
             >
               {loading ? (

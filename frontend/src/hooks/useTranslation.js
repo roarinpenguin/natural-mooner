@@ -7,14 +7,16 @@ export const useTranslation = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const translate = async (inputText, direction, apiKey, model) => {
+  const translate = async (inputText, direction, { provider, apiKey, baseUrl, model }) => {
     setLoading(true);
     setError(null);
     try {
       const response = await axios.post(`${API_URL}/translate`, {
         input_text: inputText,
         direction,
-        api_key: apiKey,
+        provider,
+        api_key: apiKey || undefined,
+        base_url: baseUrl || undefined,
         model,
       });
       return response.data;
@@ -27,11 +29,12 @@ export const useTranslation = () => {
     }
   };
 
-  const fetchModels = async (apiKey) => {
+  const fetchModels = async ({ provider, apiKey, baseUrl }) => {
     setError(null);
-    const response = await axios.get(`${API_URL}/models`, {
-      params: { api_key: apiKey },
-    });
+    const params = { provider };
+    if (apiKey) params.api_key = apiKey;
+    if (baseUrl) params.base_url = baseUrl;
+    const response = await axios.get(`${API_URL}/models`, { params });
     return response.data;
   };
 

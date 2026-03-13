@@ -2,7 +2,6 @@ import os
 from openai import OpenAI
 from app.models.schemas import TranslationRequest
 
-# Context from the user requirements
 OBSERVO_CONTEXT = """
 You are an expert Lua developer specializing in Observo.ai data transformation scripts.
 Your goal is to write efficient, safe, and correct Lua code based on the user's natural language description.
@@ -31,6 +30,7 @@ When explaining Lua:
 MODEL_PRICING = {
     "gpt-4.1-mini": {"input": 0.40, "output": 1.60},
     "gpt-4.1": {"input": 2.00, "output": 8.00},
+    "gpt-4.1-2025-04-14": {"input": 2.00, "output": 8.00},
     "gpt-4o-mini": {"input": 0.15, "output": 0.60},
     "gpt-4o": {"input": 2.50, "output": 10.00},
     "gpt-4-turbo": {"input": 10.00, "output": 30.00},
@@ -41,56 +41,101 @@ DEFAULT_MODEL_CANDIDATES = [
     "gpt-4.1-mini",
     "gpt-4o-mini",
     "gpt-4.1",
+    "gpt-4.1-2025-04-14",
     "gpt-4o",
     "gpt-4-turbo",
     "gpt-4",
 ]
 
+OLLAMA_DEFAULT_URL = "http://host.docker.internal:11434/v1"
+
+
 class LLMService:
     def __init__(self):
         self.default_api_key = os.getenv("OPENAI_API_KEY")
 
-    def _get_client(self, user_api_key: str = None) -> OpenAI:
-        api_key = user_api_key or self.default_api_key
-        if not api_key:
-            raise ValueError("OpenAI API Key is required")
-        return OpenAI(api_key=api_key)
+    def _get_client(self, provider: str = "openai", api_key: str = None, base_url: str = None) -> OpenAI:
+        if provider == "ollama":
+            return OpenAI(
+                api_key="ollama",
+                base_url=base_url or OLLAMA_DEFAULT_URL,
+            )
+        elif provider == "custom":
+            if not base_url:
+                raise ValueError("Base URL is required for Custom provider")
+            if not api_key:
+                raise ValueError("API Key is required for Custom provider")
+            return OpenAI(api_key=api_key, base_url=base_url)
+        else:
+            key = api_key or self.default_api_key
+            if not key:
+                raise ValueError("OpenAI API Key is required")
+            return OpenAI(api_key=key)
 
-    def list_models(self, user_api_key: str = None):
-        client = self._get_client(user_api_key)
+    def list_models(self, provider: str = "openai", api_key: str = None, base_url: str = None):
+        client = self._get_client(provider, api_key, base_url)
         response = client.models.list()
         available_ids = sorted({model.id for model in response.data})
         models = []
 
-        for model_id in available_ids:
-            if model_id in MODEL_PRICING:
-                pricing = MODEL_PRICING[model_id]
+        if provider == "openai":
+            for model_id in available_ids:
+                if model_id in MODEL_PRICING:
+                    pricing = MODEL_PRICING[model_id]
+                    models.append({
+                        "id": model_id,
+                        "label": model_id,
+                        "input_cost_per_million": pricing["input"],
+                        "output_cost_per_million": pricing["output"],
+                    })
+            if not models:
+                models = [
+                    {
+                        "id": mid,
+                        "label": mid,
+                        "input_cost_per_million": 0.0,
+                        "output_cost_per_million": 0.0,
+                    }
+                    for mid in available_ids
+                    if mid.startswith("gpt-")
+                ]
+            if not models:
+                raise ValueError("No supported GPT models found for this API key")
+
+            default_model = next(
+                (c for c in DEFAULT_MODEL_CANDIDATES if any(m["id"] == c for m in models)),
+                models[0]["id"],
+            )
+
+        elif provider == "ollama":
+            models = [
+                {
+                    "id": mid,
+                    "label": mid,
+                    "input_cost_per_million": 0.0,
+                    "output_cost_per_million": 0.0,
+                }
+                for mid in available_ids
+            ]
+            if not models:
+                raise ValueError("No models found in Ollama. Pull a model first with: ollama pull <model>")
+            default_model = models[0]["id"]
+
+        else:
+            for model_id in available_ids:
+                pricing = MODEL_PRICING.get(model_id, {"input": 0.0, "output": 0.0})
                 models.append({
                     "id": model_id,
                     "label": model_id,
                     "input_cost_per_million": pricing["input"],
                     "output_cost_per_million": pricing["output"],
                 })
-
-        if not models:
-            models = [
-                {
-                    "id": model_id,
-                    "label": model_id,
-                    "input_cost_per_million": 0.0,
-                    "output_cost_per_million": 0.0,
-                }
-                for model_id in available_ids
-                if model_id.startswith("gpt-")
-            ]
-
-        if not models:
-            raise ValueError("No supported GPT models found for this API key")
-
-        default_model = next(
-            (candidate for candidate in DEFAULT_MODEL_CANDIDATES if any(model["id"] == candidate for model in models)),
-            models[0]["id"],
-        )
+            if not models:
+                raise ValueError("No models found on this server")
+            default_model = next(
+                (c for c in DEFAULT_MODEL_CANDIDATES if any(m["id"] == c for m in models)),
+                models[0]["id"],
+            )
 
         return {"models": models, "default_model": default_model}
 
@@ -108,9 +153,9 @@ class LLMService:
         return round(total, 6)
 
     def process_translation(self, request: TranslationRequest):
-        client = self._get_client(request.api_key)
+        client = self._get_client(request.provider, request.api_key, request.base_url)
         model = request.model or "gpt-4o-mini"
-        
+
         if request.direction == "nl_to_lua":
             system_prompt = OBSERVO_CONTEXT + "\nTASK: Translate the following Natural Language description into a Lua Script for Observo.ai."
         else:
