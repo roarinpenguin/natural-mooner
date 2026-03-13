@@ -1,5 +1,5 @@
 import os
-from openai import OpenAI
+from openai import OpenAI, BadRequestError
 from app.models.schemas import TranslationRequest
 
 OBSERVO_CONTEXT = """
@@ -152,6 +152,22 @@ class LLMService:
         )
         return round(total, 6)
 
+    def _call_chat(self, client, model, messages, temperature):
+        try:
+            return client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+            )
+        except BadRequestError as e:
+            if "temperature" in str(e).lower():
+                print(f"Model {model} does not support custom temperature, retrying with default")
+                return client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                )
+            raise
+
     def process_translation(self, request: TranslationRequest):
         client = self._get_client(request.provider, request.api_key, request.base_url)
         model = request.model or "gpt-4o-mini"
@@ -161,15 +177,14 @@ class LLMService:
         else:
             system_prompt = OBSERVO_CONTEXT + "\nTASK: Explain the following Lua Script in Natural Language."
 
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": request.input_text}
+        ]
+        temperature = 0.2 if request.direction == "nl_to_lua" else 0.5
+
         try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": request.input_text}
-                ],
-                temperature=0.2 if request.direction == "nl_to_lua" else 0.5,
-            )
+            response = self._call_chat(client, model, messages, temperature)
             return {
                 "result_text": response.choices[0].message.content.strip(),
                 "model": model,

@@ -244,13 +244,13 @@ function App() {
           <div className="flex justify-center mb-2">
             <div className="flex bg-bg-panel/90 p-1.5 rounded-2xl shadow-neu-purple-in border border-primary/10">
               <button
-                onClick={() => setDirection('nl_to_lua')}
+                onClick={() => { setDirection('nl_to_lua'); setInput(''); setOutput(''); }}
                 className={`px-6 py-2 rounded-xl text-sm font-medium transition-all ${direction === 'nl_to_lua' ? 'bg-bg-elevated shadow-neu-purple text-primary-soft border border-primary/10' : 'text-text-muted hover:text-text-main'}`}
               >
                 Natural Language
               </button>
               <button
-                onClick={() => setDirection('lua_to_nl')}
+                onClick={() => { setDirection('lua_to_nl'); setInput(''); setOutput(''); }}
                 className={`px-6 py-2 rounded-xl text-sm font-medium transition-all ${direction === 'lua_to_nl' ? 'bg-bg-elevated shadow-neu-purple text-primary-soft border border-primary/10' : 'text-text-muted hover:text-text-main'}`}
               >
                 Lua Script
