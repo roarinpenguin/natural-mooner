@@ -1,11 +1,24 @@
 import os
 from openai import OpenAI, BadRequestError
 from app.models.schemas import TranslationRequest
+from app.services.embeddings import EmbeddingsService
 
 OBSERVO_CONTEXT = """
 You are an expert Lua developer specializing in Observo.ai data transformation scripts.
 Your goal is to write efficient, safe, and correct Lua code based on the user's natural language description.
 Or, explain existing Lua code in simple, clear natural language.
+
+=== REFERENCE DOCUMENTATION ===
+
+PRIMARY REFERENCES:
+1. Lua 5.4 Reference Manual: https://www.lua.org/manual/5.4/
+   - Follow Lua 5.4 syntax and semantics for all language constructs
+   - Use standard library functions: string, table, math, os (with pcall guards)
+   
+2. Observo Transforms Documentation: https://docs.observo.ai/6S3TPBguCvVUaX3Cy74P/working-with-data/transforms/parsers
+   - Observo-specific field access patterns and limitations
+   - Special handling for fields with dots (.) in names: use quotes like event["field.with.dots"]
+   - Nested field access: event["parent"]["child"] or event.parent["child.name"]
 
 === OBSERVO LUA RUNTIME REQUIREMENTS ===
 
@@ -189,6 +202,7 @@ OLLAMA_DEFAULT_URL = "http://host.docker.internal:11434/v1"
 class LLMService:
     def __init__(self):
         self.default_api_key = os.getenv("OPENAI_API_KEY")
+        self.embeddings_service = EmbeddingsService()
 
     def _get_client(self, provider: str = "openai", api_key: str = None, base_url: str = None) -> OpenAI:
         if provider == "ollama":
@@ -310,6 +324,21 @@ class LLMService:
 
         if request.direction == "nl_to_lua":
             system_prompt = OBSERVO_CONTEXT + "\nTASK: Translate the following Natural Language description into a Lua Script for Observo.ai."
+            
+            similar_examples = self.embeddings_service.find_similar_examples(
+                request.input_text,
+                top_k=3,
+                api_key=request.api_key
+            )
+            
+            if similar_examples:
+                examples_text = "\n\n=== SIMILAR EXAMPLES FROM USER FEEDBACK ===\n"
+                examples_text += "The following are verified working examples from previous user corrections:\n\n"
+                for idx, example in enumerate(similar_examples, 1):
+                    examples_text += f"Example {idx} (similarity: {example['similarity']:.2f}):\n"
+                    examples_text += f"Prompt: {example['prompt']}\n"
+                    examples_text += f"Working Script:\n{example['script']}\n\n"
+                system_prompt += examples_text
         else:
             system_prompt = OBSERVO_CONTEXT + "\nTASK: Explain the following Lua Script in Natural Language."
 

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Copy, Check, Settings, Sparkles, Moon, Heart, Server, Cloud, Cpu } from 'lucide-react';
+import { Copy, Check, Settings, Sparkles, Moon, Heart, Server, Cloud, Cpu, MessageSquare } from 'lucide-react';
 import NeumorphicCard from './components/NeumorphicCard';
 import NeumorphicButton from './components/NeumorphicButton';
 import NeumorphicInput from './components/NeumorphicInput';
+import FeedbackModal from './components/FeedbackModal';
 import { useTranslation } from './hooks/useTranslation';
 
 const PROVIDERS = [
@@ -27,6 +28,7 @@ function App() {
   const [totalCost, setTotalCost] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
 
   const { translate, fetchModels, loading, error } = useTranslation();
 
@@ -117,6 +119,18 @@ function App() {
     navigator.clipboard.writeText(output);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleFeedbackSubmit = async (feedbackData) => {
+    const response = await fetch('http://localhost:8001/api/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(feedbackData),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to submit feedback');
+    }
+    return await response.json();
   };
 
   return (
@@ -292,7 +306,16 @@ function App() {
           </div>
 
           <NeumorphicCard title="Result" className="h-full min-h-[400px] flex flex-col relative">
-            <div className="absolute top-6 right-6">
+            <div className="absolute top-6 right-6 flex gap-2">
+              {direction === 'nl_to_lua' && output && (
+                <NeumorphicButton
+                  onClick={() => setShowFeedback(true)}
+                  className="!p-2 rounded-lg"
+                  title="Submit corrected script"
+                >
+                  <MessageSquare size={18} />
+                </NeumorphicButton>
+              )}
               <NeumorphicButton
                 onClick={copyToClipboard}
                 className="!p-2 rounded-lg"
@@ -323,6 +346,14 @@ function App() {
           <span>by RoarinPenguin</span>
         </p>
       </footer>
+
+      <FeedbackModal
+        isOpen={showFeedback}
+        onClose={() => setShowFeedback(false)}
+        originalPrompt={input}
+        generatedScript={output}
+        onSubmit={handleFeedbackSubmit}
+      />
     </div>
   );
 }

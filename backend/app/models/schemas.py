@@ -31,3 +31,15 @@ class ModelListResponse(BaseModel):
 
 class ErrorResponse(BaseModel):
     detail: str
+
+
+class FeedbackRequest(BaseModel):
+    original_prompt: str = Field(..., description="The original natural language prompt")
+    generated_script: str = Field(..., description="The script that was generated but failed")
+    corrected_script: str = Field(..., description="The working corrected script provided by the user")
+    error_message: Optional[str] = Field(None, description="Optional error message from the failed script")
+
+
+class FeedbackResponse(BaseModel):
+    success: bool = Field(..., description="Whether the feedback was successfully stored")
+    message: str = Field(..., description="Status message")
